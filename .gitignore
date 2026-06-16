@@ -4,4 +4,3 @@ secrets/
 __pycache__/
 *.pyc
 .venv/
-scripts/
