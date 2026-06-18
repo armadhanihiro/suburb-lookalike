@@ -38,36 +38,28 @@ def apply_weights(X, weight_dict=None):
 # ============================================================
 # 4. Core：Similar Suburbs + return 0–100 similarity scores
 # ============================================================
-def find_similar_suburbs(X, selected_idx, top_n=10, use_weights=True):
+def find_similar_suburbs(X, selected_idx, top_n=10, use_weights=True, weight_dict=None):
     """
     参数:
         X: 标准化特征矩阵
         selected_idx: 选中郊区的行号
         top_n: 返回数量
         use_weights: 是否启用权重
+        weight_dict: 自定义权重字典
     返回:
         indices: 相似郊区的行号（numpy array）
         scores_0_100: 0–100 的相似度分数（越高越像）
     """
-    # 特征矩阵（可选权重）
     if use_weights:
-        X_processed = apply_weights(X)
+        X_processed = apply_weights(X, weight_dict)
     else:
         X_processed = X
 
-    # 余弦相似度
     sim = cosine_similarity(X_processed[selected_idx:selected_idx+1], X_processed)[0]
-    
-    # 排除自身
     sim[selected_idx] = -1
-    
-    # 取 top_n
     top_indices = np.argsort(sim)[::-1][:top_n]
     top_sim = sim[top_indices]
-    
-    # 把 -1～1 的余弦相似度映射到 0～100 分
     scores_0_100 = (top_sim + 1) / 2 * 100
-    
     return top_indices, scores_0_100
 
 
