@@ -1,6 +1,7 @@
 .env
 secrets/
 *.json
+cache/
 __pycache__/
 *.pyc
 .venv/
