@@ -1,11 +1,21 @@
+# App
 streamlit
+plotly
+
+# Data
 pandas
 numpy
 scikit-learn
-google-cloud-bigquery
-python-dotenv
-plotly
-db-dtypes
 pyarrow
+
+# Google Cloud
+google-cloud-bigquery
 google-cloud-bigquery-storage
+db-dtypes
 google-genai
+
+# Vector search
+faiss-cpu
+
+# Environment
+python-dotenv

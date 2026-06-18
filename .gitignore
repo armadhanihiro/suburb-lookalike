@@ -2,6 +2,8 @@
 secrets/
 *.json
 cache/
+*.npy
+*.index
 __pycache__/
 *.pyc
 .venv/
