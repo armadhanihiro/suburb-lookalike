@@ -1,10 +1,17 @@
-import os
 import logging
-import streamlit as st
-import pandas as pd
+import os
 
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
+from engine.features import KPI_COLS
+from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
-from similarity_weighted import explain_top_contributors, find_similar_suburbs
+from engine.similarity import find_similar_suburbs
+from engine.text_embed import load_or_create_embeddings
+from engine.index import build_faiss_index, search_index
 from ui.layout import (
     render_explanation_card,
     render_placeholder_state,
@@ -18,195 +25,242 @@ from ui.layout import (
 try:
     from db.bigquery_client import get_bigquery_client
     from engine.features import load_suburb_data
+
     BIGQUERY_AVAILABLE = True
 except ImportError:
     BIGQUERY_AVAILABLE = False
 
-# Suppress a known Streamlit deprecation/info message about `use_container_width`
-# which originates from Streamlit internals / third-party components.
-# This filter ignores log records that contain the exact deprecation text.
+
 class _IgnoreUseContainerWidthFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             msg = record.getMessage()
         except Exception:
             return True
-        if "Please replace `use_container_width` with `width`" in msg:
-            return False
-        return True
+
+        return "Please replace `use_container_width` with `width`" not in msg
+
 
 logging.getLogger().addFilter(_IgnoreUseContainerWidthFilter())
 
+
 st.set_page_config(
     page_title="Demografy Suburb Look-alike Finder",
-    layout="wide"
+    layout="wide",
 )
-
-st.title("🏘️ Suburb Look-alike Finder")
 
 
 @st.cache_resource
 def load_engine():
-    return _load_engine_uncached()
-
-
-def _load_engine_uncached():
-    """Load engine without Streamlit caching (useful for tests)."""
     if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
         client = get_bigquery_client()
-        df, X, _ = load_suburb_data(client)
+        df, x_numeric, _ = load_suburb_data(client)
+
+        x_text = load_or_create_embeddings(
+            profiles=[],
+            cache_path="cache/suburb_embeddings.npy",
+        )
+
         data_source = "BigQuery"
     else:
-        df, X, _ = get_sample_suburbs()
+        df, x_numeric, _ = get_sample_suburbs()
+        x_text = None
         data_source = "Sample data"
 
     df["display_name"] = df["sa2_name"] + " (" + df["state"] + ")"
-    return df, X, data_source
+
+    return df, x_numeric, x_text, data_source
 
 
-df, X, data_source = load_engine()
-controls = render_sidebar_controls(df["display_name"].tolist())
+def apply_kpi_weights(x_numeric, weights):
+    weight_vector = np.array(
+        [weights.get(col, 1.0) for col in KPI_COLS],
+        dtype="float32",
+    )
 
+    return x_numeric * weight_vector
+
+
+KPI_DISPLAY_LABELS = [
+    KPI_LABELS.get(col, col)
+    for col in KPI_COLS
+]
+
+
+df, x_numeric, x_text, data_source = load_engine()
+
+controls = render_sidebar_controls(
+    df["display_name"].tolist(),
+    KPI_COLS,
+    KPI_DISPLAY_LABELS,
+)
+
+st.title("Suburb Look-alike Finder")
 st.divider()
+
 
 if controls["search_clicked"]:
     selected_display = controls["selected_suburb"]
     top_n = controls["top_n"]
-    weight_dict = controls["weights"]
+    weights = controls["weights"]
     blend_alpha = controls["blend_alpha"]
     preset = controls["preset"]
-    # Map selected reference into candidate set
-    original_ref_idx = int(df[df["display_name"] == selected_display].index[0])
-    filtered_df = df
-    filtered_positions = list(df.index)
-    filtered_X = X
-    if original_ref_idx not in filtered_positions:
-        st.warning("Selected reference is not in the candidate set. Adjust filters.")
-        render_placeholder_state()
+
+    reference_idx = int(
+        df[df["display_name"] == selected_display].index[0]
+    )
+
+    if x_text is None:
+        st.warning(
+            "Gemini embedding cache is not available. Please run "
+            "`python -m scripts.build_embeddings` first."
+        )
         st.stop()
 
-    reference_pos = filtered_positions.index(original_ref_idx)
-    reference_idx = original_ref_idx
-
-    ranked_indices, scores = find_similar_suburbs(
-        filtered_X,
-        reference_pos,
-        top_n=top_n,
-        use_weights=True,
-        weight_dict=weight_dict,
+    weighted_x_numeric = apply_kpi_weights(
+        x_numeric,
+        weights,
     )
 
-    numeric_indices, _ = find_similar_suburbs(
-        filtered_X,
-        reference_pos,
-        top_n=top_n,
-        use_weights=False,
+    x_hybrid = fuse_vectors(
+        weighted_x_numeric,
+        x_text,
+        alpha=blend_alpha,
     )
-    numeric_rank = {int(idx): rank + 1 for rank, idx in enumerate(numeric_indices)}
+
+    faiss_index = build_faiss_index(x_hybrid)
+
+    scores, indices = search_index(
+        faiss_index,
+        x_hybrid[reference_idx].reshape(1, -1),
+        top_n=top_n + 1,
+    )
+
+    hybrid_results = []
+
+    for score, idx in zip(scores, indices):
+        if idx == reference_idx:
+            continue
+
+        hybrid_results.append(
+            {
+                "index": int(idx),
+                "similarity": float(score),
+            }
+        )
+
+        if len(hybrid_results) == top_n:
+            break
+
+    numeric_results = find_similar_suburbs(
+        weighted_x_numeric,
+        reference_idx,
+        top_n=100,
+    )
 
     rows = []
-    for rank, (idx, score) in enumerate(zip(ranked_indices, scores), start=1):
-        suburb = filtered_df.iloc[int(idx)]
-        delta = numeric_rank.get(int(idx), rank) - rank
-        if delta > 0:
-            delta_label = f"+{delta}"
-        elif delta < 0:
-            delta_label = str(delta)
-        else:
-            delta_label = "—"
 
-        top_kpis, _ = explain_top_contributors(filtered_X, reference_pos, int(idx), top_k=2)
+    for rank, item in enumerate(hybrid_results, start=1):
+        match_idx = int(item["index"])
+        suburb = df.iloc[match_idx]
+
+        top_kpis = get_top_contributing_kpis(
+            weighted_x_numeric,
+            reference_idx,
+            match_idx,
+            KPI_COLS,
+            top_n=2,
+        )
+
+        rank_delta = get_rank_delta(
+            match_idx,
+            numeric_results,
+            rank,
+        )
+
         rows.append(
             {
                 "Rank": rank,
                 "Suburb": suburb["sa2_name"],
                 "State": suburb["state"],
-                "Score": score,
+                "Score": round(float(item["similarity"]) * 100, 2),
                 "Top KPIs": ", ".join(top_kpis),
-                "vs numeric": delta_label,
+                "vs numeric": rank_delta,
+                "_match_idx": match_idx,
             }
         )
 
     results_df = pd.DataFrame(rows)
 
-    render_results_header(selected_display, data_source)
+    st.session_state.results_df = results_df
+    st.session_state.reference_idx = reference_idx
+    st.session_state.selected_display = selected_display
+    st.session_state.preset = preset
+    st.session_state.blend_alpha = blend_alpha
+
+
+if "results_df" in st.session_state:
+    results_df = st.session_state.results_df
+    reference_idx = st.session_state.reference_idx
+    selected_display = st.session_state.selected_display
+    preset = st.session_state.preset
+    blend_alpha = st.session_state.blend_alpha
+
+    render_results_header(
+        selected_display,
+        data_source,
+    )
+
     reference_row = df.iloc[reference_idx]
+
     render_reference_summary(
         reference_row,
-        [
-            "kpi_1_val",
-            "kpi_2_val",
-            "kpi_3_val",
-            "kpi_4_val",
-            "kpi_5_val",
-            "kpi_6_val",
-            "kpi_7_val",
-            "kpi_8_val",
-            "kpi_9_val",
-            "kpi_10_val",
-        ],
-        [
-            "Prosperity",
-            "Diversity",
-            "Migration",
-            "Learning",
-            "Social Housing",
-            "Equity",
-            "Rental",
-            "Anchor",
-            "Mobility",
-            "Young Family",
-        ],
+        KPI_COLS,
+        KPI_DISPLAY_LABELS,
     )
+
     render_results_table(results_df)
 
-    if len(results_df) > 0:
-        top_match = results_df.iloc[0]["Suburb"]
-        top_similarity = float(results_df.iloc[0]["Score"])
-        match_row = df[df["sa2_name"] == top_match].iloc[0]
-        top_kpis = results_df.iloc[0]["Top KPIs"].split(", ")
+    selected_row_pos = st.selectbox(
+        "Choose match to explain",
+        options=list(range(len(results_df))),
+        format_func=lambda i: (
+            f"{results_df.iloc[i]['Rank']}. "
+            f"{results_df.iloc[i]['Suburb']} "
+            f"({results_df.iloc[i]['State']})"
+        ),
+    )
 
-        st.divider()
-        chart_col, explain_col = st.columns([3, 2], gap="large")
+    selected_result = results_df.iloc[selected_row_pos]
 
-        with explain_col:
-            render_explanation_card(
-                selected_display,
-                top_match,
-                top_similarity,
-                preset,
-                blend_alpha,
-                top_kpis,
-            )
+    match_idx = int(selected_result["_match_idx"])
+    match_row = df.iloc[match_idx]
 
-        with chart_col:
-            render_radar_chart(
-                reference_row,
-                match_row,
-                [
-                    "kpi_1_val",
-                    "kpi_2_val",
-                    "kpi_3_val",
-                    "kpi_4_val",
-                    "kpi_5_val",
-                    "kpi_6_val",
-                    "kpi_7_val",
-                    "kpi_8_val",
-                    "kpi_9_val",
-                    "kpi_10_val",
-                ],
-                [
-                    "Prosperity",
-                    "Diversity",
-                    "Migration",
-                    "Learning",
-                    "Social Housing",
-                    "Equity",
-                    "Rental",
-                    "Anchor",
-                    "Mobility",
-                    "Young Family",
-                ],
-            )
-    else:
-        render_placeholder_state()
+    match_name = match_row["sa2_name"]
+    match_similarity = float(selected_result["Score"])
+    top_kpis = selected_result["Top KPIs"].split(", ")
+
+    st.divider()
+
+    chart_col, explain_col = st.columns([3, 2], gap="large")
+
+    with explain_col:
+        render_explanation_card(
+            selected_display,
+            match_name,
+            match_similarity,
+            preset,
+            blend_alpha,
+            top_kpis,
+        )
+
+    with chart_col:
+        render_radar_chart(
+            reference_row,
+            match_row,
+            KPI_COLS,
+            KPI_DISPLAY_LABELS,
+        )
+
+else:
+    render_placeholder_state()
