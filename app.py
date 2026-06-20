@@ -12,6 +12,13 @@ from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs
 from engine.text_embed import load_or_create_embeddings
 from engine.index import build_faiss_index, search_index
+from engine.rbac import (
+    get_user_access,
+    cap_top_n,
+    increment_lookup,
+    has_lookup_remaining,
+)
+
 from ui.layout import (
     render_explanation_card,
     render_placeholder_state,
@@ -89,10 +96,23 @@ KPI_DISPLAY_LABELS = [
 
 df, x_numeric, x_text, data_source = load_engine()
 
+user_id = st.sidebar.text_input(
+    "User ID",
+    value="user_017",
+)
+
+access = get_user_access(user_id)
+
+if "access" not in st.session_state or st.session_state.access["user_id"] != user_id:
+    st.session_state.access = access
+
+access = st.session_state.access
+
 controls = render_sidebar_controls(
     df["display_name"].tolist(),
     KPI_COLS,
     KPI_DISPLAY_LABELS,
+    access,
 )
 
 st.title("Suburb Look-alike Finder")
@@ -100,8 +120,16 @@ st.divider()
 
 
 if controls["search_clicked"]:
+    if not has_lookup_remaining(access):
+        st.error("You have reached your lookup limit.")
+        st.stop()
+
+    st.session_state.access = increment_lookup(access)
+    access = st.session_state.access
+
     selected_display = controls["selected_suburb"]
     top_n = controls["top_n"]
+    top_n = cap_top_n(top_n, access)
     weights = controls["weights"]
     blend_alpha = controls["blend_alpha"]
     preset = controls["preset"]

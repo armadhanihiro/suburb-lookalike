@@ -5,23 +5,26 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-def render_sidebar_controls(display_names, kpi_cols, kpi_labels):
+def render_sidebar_controls(display_names, kpi_cols, kpi_labels, access):
     with st.sidebar:
         st.image("assets/demografy-logo.png", width=180)
 
         st.markdown("### 🏡 Controls")
 
         with st.container(border=True):
-            st.markdown("**user_017 · Pro**")
-            st.caption("42 / 50 lookups left")
+            st.markdown(f"**{access['user_id']} · {access['tier']}**")
+            remaining = access["lookup_limit"] - access["lookups_used"]
+            st.caption(f"{remaining} / {access['lookup_limit']} lookups left")
+            st.caption(f"Match cap: {access['match_cap']}")
 
         selected_suburb = st.selectbox("Reference suburb", display_names)
 
+        match_cap = access["match_cap"]
         top_n = st.slider(
             "Matches to return",
             min_value=1,
-            max_value=25,
-            value=10,
+            max_value=match_cap,
+            value=min(10, match_cap),
         )
 
         st.divider()
