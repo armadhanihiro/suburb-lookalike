@@ -96,15 +96,16 @@ KPI_DISPLAY_LABELS = [
 
 df, x_numeric, x_text, data_source = load_engine()
 
-user_id = st.sidebar.text_input(
-    "User ID",
-    value="user_017",
-)
+client_for_rbac = None
 
-access = get_user_access(user_id)
+if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    client_for_rbac = get_bigquery_client()
 
-if "access" not in st.session_state or st.session_state.access["user_id"] != user_id:
-    st.session_state.access = access
+user_id = st.sidebar.text_input("User ID", value="user_017", key="rbac_user_id").strip()
+base_access = get_user_access(user_id, client=client_for_rbac)
+
+if ("access" not in st.session_state or st.session_state.access["user_id"] != user_id):
+    st.session_state.access = base_access
 
 access = st.session_state.access
 
@@ -120,6 +121,10 @@ st.divider()
 
 
 if controls["search_clicked"]:
+    if not access["is_active"]:
+        st.error("User account is inactive.")
+        st.stop()
+
     if not has_lookup_remaining(access):
         st.error("You have reached your lookup limit.")
         st.stop()
