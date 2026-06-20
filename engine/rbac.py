@@ -8,8 +8,8 @@ TIER_LIMITS = {
 }
 
 LOOKUP_LIMITS = {
-    "free": 10,
-    "basic": 25,
+    "free": 5,
+    "basic": 20,
     "pro": 50,
 }
 
@@ -90,7 +90,7 @@ def get_user_access(user_id, client=None):
     return build_access(
         user_id=user_id,
         tier="free",
-        is_active=False,
+        is_active=True,
     )
 
 

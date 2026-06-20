@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
-from engine.features import KPI_COLS
+from engine.features_test import KPI_COLS
 from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs
@@ -73,9 +73,23 @@ def load_engine():
         df, x_numeric, _ = get_sample_suburbs()
         x_text = None
         data_source = "Sample data"
-
-    df["display_name"] = df["sa2_name"] + " (" + df["state"] + ")"
-
+    # Add State abbreviation mapping
+    # ============================================================
+    STATE_ABBR = {
+        "New South Wales": "NSW",
+        "Victoria": "VIC",
+        "Queensland": "QLD",
+        "Western Australia": "WA",
+        "South Australia": "SA",
+        "Tasmania": "TAS",
+        "Australian Capital Territory": "ACT",
+        "Northern Territory": "NT",
+        "Other Territories": "OT",
+        "Outside Australia": "OA"
+    }
+    df["state_abbr"] = df["state"].map(STATE_ABBR).fillna(df["state"])
+    df["display_name"] = df["sa2_name"] + " (" + df["state_abbr"] + ")"
+    
     return df, x_numeric, x_text, data_source
 
 
@@ -202,7 +216,7 @@ if controls["search_clicked"]:
             reference_idx,
             match_idx,
             KPI_COLS,
-            top_n=2,
+            top_n=3,
         )
 
         rank_delta = get_rank_delta(
@@ -215,7 +229,7 @@ if controls["search_clicked"]:
             {
                 "Rank": rank,
                 "Suburb": suburb["sa2_name"],
-                "State": suburb["state"],
+                "State": suburb["state_abbr"],
                 "Score": round(float(item["similarity"]) * 100, 2),
                 "Top KPIs": ", ".join(top_kpis),
                 "vs numeric": rank_delta,
