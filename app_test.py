@@ -19,6 +19,8 @@ from engine.rbac import (
     has_lookup_remaining,
 )
 
+from engine.user_login import login_screen, is_logged_in, get_current_access  # new login sheet
+
 from ui.layout import (
     render_explanation_card,
     render_placeholder_state,
@@ -130,12 +132,43 @@ client_for_rbac = None
 if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
     client_for_rbac = get_bigquery_client()
 
-user_id = st.sidebar.text_input("User ID", value="user_017", key="rbac_user_id").strip()
-base_access = get_user_access(user_id, client=client_for_rbac)
+#user_id = st.sidebar.text_input("User ID", value="user_017", key="rbac_user_id").strip()
+#base_access = get_user_access(user_id, client=client_for_rbac)
+#
+#if ("access" not in st.session_state or st.session_state.access["user_id"] != user_id):
+#    st.session_state.access = base_access
+#
+#access = st.session_state.access
 
-if ("access" not in st.session_state or st.session_state.access["user_id"] != user_id):
-    st.session_state.access = base_access
+# ============================================================
+# new login page（replace user_id input, hide all other content）
+# ============================================================
+if "access" not in st.session_state:
+    st.session_state.access = None
 
+# display login page
+user_access = login_screen()
+if user_access:
+    st.session_state.access = user_access
+    st.rerun()
+
+# check if not logged in, hide all contents
+if not is_logged_in():
+    st.set_page_config(page_title="Login - Demografy", layout="centered")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("assets/demografy-logo.png", width=150)
+        st.title("🔐 Welcome to Demografy")
+        st.markdown("Please log in to access the Suburb Look-alike Finder.")
+        st.caption("Don't have an account? Contact your administrator to register.")
+
+        # Ask for user email
+        st.info("Use your registered email to log in.")
+    
+    st.stop()  # stop displaying content
+
+# access current user access
 access = st.session_state.access
 
 controls = render_sidebar_controls(
@@ -146,7 +179,7 @@ controls = render_sidebar_controls(
 )
 
 st.title("Suburb Look-alike Finder")
-st.divider()
+st.divider() 
 
 
 if controls["search_clicked"]:

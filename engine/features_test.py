@@ -6,7 +6,7 @@ KPI_COLS = [f"kpi_{i}_val" for i in range(1, 11)]
 
 def load_suburb_data_test(client):
     """
-    revised version of load_suburb_data
+    改进版 load_suburb_data
     - missing ≥ 5 KPI → Disregard（Print Notice）
     - missing < 5 KPI → use SA4 median for imputation
     """
