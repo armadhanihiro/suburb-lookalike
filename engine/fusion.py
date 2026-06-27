@@ -15,7 +15,7 @@ def fuse_vectors(X_numeric, X_text, alpha=0.4):
         raise ValueError("alpha must be between 0 and 1")
 
     if X_numeric.shape[0] != X_text.shape[0]:
-        raise ValueError(
+        raise ValueError(   
             "Numeric and text matrices must have the same number of rows"
         )
 
