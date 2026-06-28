@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from engine.logging_utils import log_search
+import time
+
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
 from engine.features_test import KPI_COLS
 from engine.fusion import fuse_vectors

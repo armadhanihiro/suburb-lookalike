@@ -1,52 +1,182 @@
-from db.bigquery_client import get_bigquery_client
-from engine.features import load_suburb_data
-from engine.fusion import fuse_vectors
-from engine.text_embed import load_or_create_embeddings
-from engine.similarity import find_similar_suburbs
+from dataclasses import dataclass
 
 
-def main():
-    client = get_bigquery_client()
-
-    df, x_numeric, _ = load_suburb_data(client)
-
-    x_text = load_or_create_embeddings(
-        profiles=[],
-        cache_path="cache/suburb_embeddings.npy",
-    )
-
-    x_hybrid = fuse_vectors(
-        x_numeric,
-        x_text,
-        alpha=0.4,
-    )
-
-    reference_indices = list(range(5))
-
-    for reference_idx in reference_indices:
-        reference = df.iloc[reference_idx]
-
-        results = find_similar_suburbs(
-            x_hybrid,
-            reference_idx,
-            top_n=10,
-        )
-
-        print("\nReference:")
-        print(reference["sa2_name"], "-", reference["state"])
-
-        print("Top matches:")
-        for rank, item in enumerate(results, start=1):
-            match = df.iloc[item["index"]]
-
-            print(
-                rank,
-                match["sa2_name"],
-                "-",
-                match["state"],
-                round(item["similarity"], 4),
-            )
+@dataclass
+class GoldenReference:
+    reference: str
+    expected: list[str]
+    rationale: str
 
 
-if __name__ == "__main__":
-    main()
+GOLDEN_SET: list[GoldenReference] = [
+    # Cluster 0
+    GoldenReference(
+        reference="Birkdale - Queensland",
+        expected=[
+            "Wellington Point - Queensland",
+            "Elanora - Queensland",
+            "Box Head - MacMasters Beach - New South Wales",
+            "Springwood - Winmalee - New South Wales",
+            "Mount Martha - Victoria",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 1
+    GoldenReference(
+        reference="Ingleburn - New South Wales",
+        expected=[
+            "Blacktown - South - New South Wales",
+            "Minto - St Andrews - New South Wales",
+            "Hadfield - Victoria",
+            "Altona North - Victoria",
+            "Glendenning - Dean Park - New South Wales",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 2
+    GoldenReference(
+        reference="Bega - Tathra - New South Wales",
+        expected=[
+            "Gympie - South - Queensland",
+            "Tatiara - South Australia",
+            "King Island - Tasmania",
+            "Summerhill - Prospect - Tasmania",
+            "Kangaroo Island - South Australia",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 3
+    GoldenReference(
+        reference="Halls Creek - Western Australia",
+        expected=[
+            "Victoria River - Northern Territory",
+            "Gulf - Northern Territory",
+            "Tanami - Northern Territory",
+            "Elsey - Northern Territory",
+            "Barkly - Northern Territory",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 4
+    GoldenReference(
+        reference="Bibra Industrial - Western Australia",
+        expected=[
+            "Welshpool - Western Australia",
+            "Koolpinyah - Northern Territory",
+            "Migratory - Offshore - Shipping (NT) - Northern Territory",
+            "Migratory - Offshore - Shipping (WA) - Western Australia",
+            "Prospect Reservoir - New South Wales",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 5
+    GoldenReference(
+        reference="Aitkenvale - Queensland",
+        expected=[
+            "Innisfail - Queensland",
+            "Mildura - North - Victoria",
+            "Newnham - Mayfield - Tasmania",
+            "Kirwan - East - Queensland",
+            "Newtown (Qld) - Queensland",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 6
+    GoldenReference(
+        reference="Jindalee - Mount Ommaney - Queensland",
+        expected=[
+            "Seventeen Mile Rocks - Sinnamon Park - Queensland",
+            "McDowall - Queensland",
+            "Carindale - Queensland",
+            "Belmont - Gumdale - Queensland",
+            "Asquith - Mount Colah - New South Wales",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 7
+    GoldenReference(
+        reference="Abbotsford - Victoria",
+        expected=[
+            "Prahran - Windsor - Victoria",
+            "Brunswick East - Victoria",
+            "Brunswick - South - Victoria",
+            "South Yarra - West - Victoria",
+            "Hobart - Tasmania",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 8
+    GoldenReference(
+        reference="Subiaco - Shenton Park - Western Australia",
+        expected=[
+            "Elsternwick - Victoria",
+            "Hawthorn East - Victoria",
+            "Kensington (Vic.) - Victoria",
+            "South Perth - Kensington - Western Australia",
+            "Lyons (ACT) - Australian Capital Territory",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+    # Cluster 9
+    GoldenReference(
+        reference="Pallara - Willawong - Queensland",
+        expected=[
+            "Edmondson Park - New South Wales",
+            "Coombs - Australian Capital Territory",
+            "Denham Court - Bardia - New South Wales",
+            "Schofields - East - New South Wales",
+            "Leppington - Catherine Field - New South Wales",
+        ],
+        rationale=(
+            "Selected using combined hybrid similarity and KPI similarity. "
+            "These neighbours were chosen because they ranked highly under the "
+            "hybrid model while also maintaining close demographic KPI patterns."
+        ),
+    ),
+
+]
