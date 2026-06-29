@@ -44,10 +44,10 @@ def load_suburb_data(client):
     # Flag remote / low-population outliers.
     # We do not remove them because they may still be valid suburbs,
     # but downstream UI/evaluation can treat them as special cases.
-    df["is_remote_outlier"] = (
-        (df["population"].fillna(0) < 500)
-        | (df["area"].fillna(0) > df["area"].quantile(0.95))
-    )
+    population_threshold = df["population"].quantile(0.05)
+    area_threshold = df["area"].quantile(0.95)
+
+    df["is_remote_outlier"] = ((df["population"] <= population_threshold) & (df["area"] >= area_threshold))
 
     removed_count = before_count - len(df)
 
