@@ -22,10 +22,28 @@ def get_gemini_client():
     return genai.Client(api_key=api_key)
 
 
+def embed_batch_with_retry(client, batch, model, max_retries=5, base_sleep_seconds=2,):
+    for attempt in range(max_retries):
+        try:
+            return client.models.embed_content(model=model, contents=batch,)
+        except Exception as error:
+            wait_seconds = base_sleep_seconds * (2 ** attempt)
+
+            print(
+                f"Embedding failed on attempt {attempt + 1}/{max_retries}. "
+                f"Retrying in {wait_seconds}s. Error: {error}"
+            )
+            time.sleep(wait_seconds)
+
+    raise RuntimeError(f"Failed to embed batch after {max_retries} retries.")
+
 def embed_texts(texts, model="gemini-embedding-001", batch_size=100, sleep_seconds=1):
     client = get_gemini_client()
     all_embeddings = []
     total = len(texts)
+
+    if total == 0:
+        raise ValueError("No text profiles provided for embedding.")
 
     for start in range(0, total, batch_size):
         end = min(start + batch_size, total)
@@ -33,9 +51,10 @@ def embed_texts(texts, model="gemini-embedding-001", batch_size=100, sleep_secon
 
         print(f"Embedding batch {start} - {end} of {total}")
 
-        response = client.models.embed_content(
+        response = embed_batch_with_retry(
+            client=client,
+            batch=batch,
             model=model,
-            contents=batch,
         )
 
         batch_embeddings = [

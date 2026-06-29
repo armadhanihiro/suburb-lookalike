@@ -14,10 +14,11 @@ METADATA_COLS = [
     "population",
 ]
 
-
 KPI_COLS = [
     f"kpi_{i}_val" for i in range(1, 11)
 ]
+
+MIN_AVAILABLE_KPIS = 5
 
 
 def load_suburb_data(client):
@@ -30,10 +31,30 @@ def load_suburb_data(client):
 
     df = client.query(query).to_dataframe()
 
-    # Handle missing KPI values
+    missing_counts = df[KPI_COLS].isna().sum(axis=1)
+
+    df["missing_kpi_count"] = missing_counts
+    df["missing_kpi_ratio"] = missing_counts / len(KPI_COLS)
+    df["is_low_data_quality"] = missing_counts > (len(KPI_COLS) - MIN_AVAILABLE_KPIS)
+
+    before_count = len(df)
+
+    df = df[~df["is_low_data_quality"]].copy()
+
+    removed_count = before_count - len(df)
+
+    if removed_count > 0:
+        print(
+            f"Removed {removed_count} suburbs with fewer than "
+            f"{MIN_AVAILABLE_KPIS} available KPI values."
+        )
+
+    sa4_medians = df.groupby("sa4_code")[KPI_COLS].transform("median")
+
+    df[KPI_COLS] = df[KPI_COLS].fillna(sa4_medians)
+
     df[KPI_COLS] = df[KPI_COLS].fillna(df[KPI_COLS].median())
 
-    # Standardise KPI values
     scaler = StandardScaler()
 
     X = scaler.fit_transform(df[KPI_COLS])
