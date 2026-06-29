@@ -9,7 +9,7 @@ from engine.logging_utils import now_ms, elapsed_ms, log_search
 import time
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
-from engine.features_test import KPI_COLS
+from engine.features import KPI_COLS
 from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs

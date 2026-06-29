@@ -41,6 +41,14 @@ def load_suburb_data(client):
 
     df = df[~df["is_low_data_quality"]].copy()
 
+    # Flag remote / low-population outliers.
+    # We do not remove them because they may still be valid suburbs,
+    # but downstream UI/evaluation can treat them as special cases.
+    df["is_remote_outlier"] = (
+        (df["population"].fillna(0) < 500)
+        | (df["area"].fillna(0) > df["area"].quantile(0.95))
+    )
+
     removed_count = before_count - len(df)
 
     if removed_count > 0:
@@ -58,5 +66,10 @@ def load_suburb_data(client):
     scaler = StandardScaler()
 
     X = scaler.fit_transform(df[KPI_COLS])
+
+    duplicate_count = df["display_name"].duplicated().sum() if "display_name" in df.columns else 0
+
+    if duplicate_count > 0:
+        print(f"Warning: found {duplicate_count} duplicate display names.")
 
     return df, X, scaler
