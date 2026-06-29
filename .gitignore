@@ -2,6 +2,7 @@
 secrets/
 *.json
 cache/
+logs/
 *.npy
 *.index
 __pycache__/

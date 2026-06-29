@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from engine.logging_utils import log_search
+from engine.logging_utils import now_ms, elapsed_ms, log_search
 import time
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
@@ -171,6 +171,7 @@ st.divider()
 
 
 if controls["search_clicked"]:
+    start_time = now_ms()
     if not access["is_active"]:
         st.error("User account is inactive.")
         st.stop()
@@ -274,6 +275,26 @@ if controls["search_clicked"]:
         )
 
     results_df = pd.DataFrame(rows)
+
+    log_search(
+        user_id=access["user_id"],
+        reference=selected_display,
+        alpha=blend_alpha,
+        top_n=top_n,
+        preset=preset,
+        data_source=data_source,
+        duration_ms=elapsed_ms(start_time),
+        results=[
+            {
+                "rank": row["Rank"],
+                "suburb": row["Suburb"],
+                "state": row["State"],
+                "score": row["Score"],
+                "top_kpis": row["Top KPIs"],
+                "vs_numeric": row["vs numeric"],
+            } for row in rows
+        ],
+    )
 
     st.session_state.results_df = results_df
     st.session_state.reference_idx = reference_idx

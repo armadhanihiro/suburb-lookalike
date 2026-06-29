@@ -1,29 +1,34 @@
 import json
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 
 LOG_PATH = Path("logs/search_log.jsonl")
 
-LOG_PATH.parent.mkdir(exist_ok=True)
+
+def now_ms():
+    return time.perf_counter()
 
 
-def log_search(
-    reference,
-    alpha,
-    top_n,
-    duration_ms,
-    returned,
-):
+def elapsed_ms(start_time):
+    return round((time.perf_counter() - start_time) * 1000, 2)
+
+
+def log_search(user_id, reference, alpha, top_n, preset, data_source, duration_ms, results):
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     record = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "user_id": user_id,
         "reference": reference,
         "alpha": alpha,
         "top_n": top_n,
-        "duration_ms": round(duration_ms, 2),
-        "returned": returned,
+        "preset": preset,
+        "data_source": data_source,
+        "duration_ms": duration_ms,
+        "results": results,
     }
 
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record))
-        f.write("\n")
+    with LOG_PATH.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False))
+        file.write("\n")
