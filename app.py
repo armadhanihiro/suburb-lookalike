@@ -68,18 +68,24 @@ st.set_page_config(
 if "access" not in st.session_state:
     st.session_state.access = None
 
-# ✅ if logged in, skip login screen and continue to main app
 if st.session_state.access is not None:
-    print("✅ user logged in，skip login screen, continue to main app")
+    print("✅ user logged in， showing welcome message")
     access = st.session_state.access
+    
+    # show log out button
+    with st.sidebar:
+        st.write(f"👋 Welcome, **{access.get('user_id', 'User')}**")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.access = None
+            st.rerun()
+    
 else:
-    # not logged in, show login screen and stop rendering main app
-    print("🔐 user not logged in, showing login screen")
+    print("🔐 user not logged in, showing login interface")
     user_access = login_screen()
     if user_access:
         st.session_state.access = user_access
         st.rerun()
-    st.stop()  # stop rendering main app until user logs in
+    st.stop()
 
 st.markdown(
     """

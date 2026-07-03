@@ -86,11 +86,12 @@ def get_user_access(user_id, client=None):
                 tier=customer["tier"],
                 is_active=customer["is_active"],
             )
+    return none
 
     return build_access(
         user_id=user_id,
         tier="free",
-        is_active=True,
+        is_active=False,
     )
 
 
