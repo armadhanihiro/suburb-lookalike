@@ -86,7 +86,7 @@ def get_user_access(user_id, client=None):
                 tier=customer["tier"],
                 is_active=customer["is_active"],
             )
-    return none
+    return None
 
     return build_access(
         user_id=user_id,
