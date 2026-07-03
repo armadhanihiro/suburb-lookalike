@@ -22,7 +22,7 @@ from engine.rbac import (
     has_lookup_remaining,
 )
 
-from engine.user_login import login_screen, is_logged_in, get_current_access  # new login sheet
+# Removed interactive login UI: use a default local access when not provided
 
 from ui.layout import (
     render_explanation_card,
@@ -59,6 +59,23 @@ logging.getLogger().addFilter(_IgnoreUseContainerWidthFilter())
 st.set_page_config(
     page_title="Demografy Suburb Look-alike Finder",
     layout="wide",
+)
+
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sauce+Sans:wght@400;500;600;700&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
+
+    html, body, .stApp, .main, .block-container, .element-container, .css-1cpxqw2, .css-1d391kg {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+
+    h1, h2, h3, h4, h5, h6, .stText, .stMarkdown {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -131,30 +148,48 @@ if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
 # ============================================================
 # new login page（replace user_id input, hide all other content）
 # ============================================================
-if "access" not in st.session_state:
-    st.session_state.access = None
-
-# display login page
-user_access = login_screen()
-if user_access:
-    st.session_state.access = user_access
-    st.rerun()
-
-# check if not logged in, hide all contents
-if not is_logged_in():
+if "access" not in st.session_state or not st.session_state.get("access") or not st.session_state.get("access", {}).get("is_active", False):
     st.set_page_config(page_title="Login - Demografy", layout="centered")
-    
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image("assets/demografy-logo.png", width=150)
         st.title("🔐 Welcome to Demografy")
-        st.markdown("Please log in to access the Suburb Look-alike Finder.")
-        st.caption("Don't have an account? Contact your administrator to register.")
 
-        # Ask for user email
-        st.info("Use your registered email to log in.")
-    
-    st.stop()  # stop displaying content
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+
+        login_btn = st.button("Login", use_container_width=True)
+        demo_btn = st.button("Continue as demo", use_container_width=True)
+
+        if login_btn:
+            if not email:
+                st.error("Please enter your email")
+            else:
+                try:
+                    if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                        user_access = get_user_access(email, client=client_for_rbac)
+                    else:
+                        user_access = get_user_access(email)
+
+                    if user_access and user_access.get("is_active", False):
+                        st.session_state.access = user_access
+                        st.rerun()
+                    else:
+                        st.error("Invalid email or inactive account. Please contact your administrator.")
+                except Exception as e:
+                    st.error(f"Login error: {e}")
+
+        if demo_btn:
+            try:
+                st.session_state.access = get_user_access("local_dev", client=client_for_rbac)
+            except Exception:
+                st.session_state.access = get_user_access("local_dev")
+
+            st.success("Continuing as demo user")
+            st.rerun()
+
+    st.stop()
 
 # access current user access
 access = st.session_state.access

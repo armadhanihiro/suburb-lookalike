@@ -196,7 +196,8 @@ def render_explanation_card(
                 st.markdown(f"- **{kpi}**")
 
     with col2:
-        st.metric("Similarity score", f"{similarity_score:.1f}/100")
+        st.metric("Similarity score", f"{similarity_score:.1f}")
+        st.caption("/100")
         st.metric("Blend α", f"{blend_alpha:.1f}")
 
     st.markdown(
@@ -220,14 +221,14 @@ def render_radar_chart(reference_row: pd.Series, match_row: pd.Series, kpi_cols:
                 r=reference_trace,
                 theta=categories,
                 fill="toself",
-                name="Reference",
+                name="Reference suburb",
                 line=dict(color="#5e17eb"),
             ),
             go.Scatterpolar(
                 r=match_trace,
                 theta=categories,
                 fill="toself",
-                name="Selected match",
+                name="Selected matching suburb",
                 line=dict(color="#8df2ed"),
             ),
         ]
