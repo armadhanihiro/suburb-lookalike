@@ -77,6 +77,7 @@ if st.session_state.access is not None:
         st.write(f"👋 Welcome, **{access.get('user_id', 'User')}**")
         if st.button("Logout", use_container_width=True):
             st.session_state.access = None
+            st.cache_data.clear()
             st.rerun()
     
 else:
