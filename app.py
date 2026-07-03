@@ -9,7 +9,7 @@ from engine.logging_utils import now_ms, elapsed_ms, log_search
 import time
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
-from engine.features import KPI_COLS
+from engine.features_test import KPI_COLS
 from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs
@@ -61,6 +61,24 @@ st.set_page_config(
     layout="wide",
 )
 
+# ============================================================
+# Login Handling
+# ============================================================
+if "access" not in st.session_state:
+    st.session_state.access = None
+
+# ✅ if logged in, skip login screen and continue to main app
+if st.session_state.access is not None:
+    print("✅ user logged in，skip login screen, continue to main app")
+    access = st.session_state.access
+else:
+    # not logged in, show login screen and stop rendering main app
+    print("🔐 user not logged in, showing login screen")
+    user_access = login_screen()
+    if user_access:
+        st.session_state.access = user_access
+        st.rerun()
+    st.stop()  # stop rendering main app until user logs in
 
 @st.cache_resource
 def load_engine():
@@ -127,37 +145,6 @@ if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
 #    st.session_state.access = base_access
 
 #access = st.session_state.access
-
-# ============================================================
-# new login page（replace user_id input, hide all other content）
-# ============================================================
-if "access" not in st.session_state:
-    st.session_state.access = None
-
-# display login page
-user_access = login_screen()
-if user_access:
-    st.session_state.access = user_access
-    st.rerun()
-
-# check if not logged in, hide all contents
-if not is_logged_in():
-    st.set_page_config(page_title="Login - Demografy", layout="centered")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("assets/demografy-logo.png", width=150)
-        st.title("🔐 Welcome to Demografy")
-        st.markdown("Please log in to access the Suburb Look-alike Finder.")
-        st.caption("Don't have an account? Contact your administrator to register.")
-
-        # Ask for user email
-        st.info("Use your registered email to log in.")
-    
-    st.stop()  # stop displaying content
-
-# access current user access
-access = st.session_state.access
 
 controls = render_sidebar_controls(
     df["display_name"].tolist(),
