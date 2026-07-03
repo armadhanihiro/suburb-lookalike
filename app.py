@@ -9,7 +9,7 @@ from engine.logging_utils import now_ms, elapsed_ms, log_search
 import time
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
-from engine.features_test import KPI_COLS
+from engine.features import KPI_COLS
 from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs
@@ -22,7 +22,7 @@ from engine.rbac import (
     has_lookup_remaining,
 )
 
-from engine.user_login import login_screen, is_logged_in, get_current_access  # new login sheet
+# Removed interactive login UI: use a default local access when not provided
 
 from ui.layout import (
     render_explanation_card,
@@ -61,24 +61,23 @@ st.set_page_config(
     layout="wide",
 )
 
-# ============================================================
-# Login Handling
-# ============================================================
-if "access" not in st.session_state:
-    st.session_state.access = None
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sauce+Sans:wght@400;500;600;700&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
 
-# ✅ if logged in, skip login screen and continue to main app
-if st.session_state.access is not None:
-    print("✅ user logged in，skip login screen, continue to main app")
-    access = st.session_state.access
-else:
-    # not logged in, show login screen and stop rendering main app
-    print("🔐 user not logged in, showing login screen")
-    user_access = login_screen()
-    if user_access:
-        st.session_state.access = user_access
-        st.rerun()
-    st.stop()  # stop rendering main app until user logs in
+    html, body, .stApp, .main, .block-container, .element-container, .css-1cpxqw2, .css-1d391kg {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+
+    h1, h2, h3, h4, h5, h6, .stText, .stMarkdown {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_resource
 def load_engine():
@@ -145,6 +144,55 @@ if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
 #    st.session_state.access = base_access
 
 #access = st.session_state.access
+
+# ============================================================
+# new login page（replace user_id input, hide all other content）
+# ============================================================
+if "access" not in st.session_state or not st.session_state.get("access") or not st.session_state.get("access", {}).get("is_active", False):
+    st.set_page_config(page_title="Login - Demografy", layout="centered")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("assets/demografy-logo.png", width=150)
+        st.title("🔐 Welcome to Demografy")
+
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+
+        login_btn = st.button("Login", use_container_width=True)
+        demo_btn = st.button("Continue as demo", use_container_width=True)
+
+        if login_btn:
+            if not email:
+                st.error("Please enter your email")
+            else:
+                try:
+                    if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                        user_access = get_user_access(email, client=client_for_rbac)
+                    else:
+                        user_access = get_user_access(email)
+
+                    if user_access and user_access.get("is_active", False):
+                        st.session_state.access = user_access
+                        st.rerun()
+                    else:
+                        st.error("Invalid email or inactive account. Please contact your administrator.")
+                except Exception as e:
+                    st.error(f"Login error: {e}")
+
+        if demo_btn:
+            try:
+                st.session_state.access = get_user_access("local_dev", client=client_for_rbac)
+            except Exception:
+                st.session_state.access = get_user_access("local_dev")
+
+            st.success("Continuing as demo user")
+            st.rerun()
+
+    st.stop()
+
+# access current user access
+access = st.session_state.access
 
 controls = render_sidebar_controls(
     df["display_name"].tolist(),
