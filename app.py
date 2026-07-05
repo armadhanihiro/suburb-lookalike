@@ -74,6 +74,7 @@ if st.session_state.access is not None:
     
     # show log out button
     with st.sidebar:
+        st.image("assets/demografy-logo.png", width=180)
         st.write(f"👋 Welcome, **{access.get('user_id', 'User')}**")
         if st.button("Logout", use_container_width=True):
             st.session_state.access = None

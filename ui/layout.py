@@ -7,8 +7,6 @@ import streamlit as st
 
 def render_sidebar_controls(display_names, kpi_cols, kpi_labels, access):
     with st.sidebar:
-        st.image("assets/demografy-logo.png", width=180)
-
         st.markdown("### 🏡 Controls")
 
         with st.container(border=True):
@@ -211,6 +209,10 @@ def render_radar_chart(reference_row: pd.Series, match_row: pd.Series, kpi_cols:
     reference_values = [float(reference_row[col]) for col in kpi_cols]
     match_values = [float(match_row[col]) for col in kpi_cols]
 
+    # Create display names from suburb data
+    reference_suburb_name = f"{reference_row['sa2_name']} ({reference_row['state_abbr']})"
+    match_suburb_name = f"{match_row['sa2_name']} ({match_row['state_abbr']})"
+
     categories = kpi_labels + [kpi_labels[0]]
     reference_trace = reference_values + [reference_values[0]]
     match_trace = match_values + [match_values[0]]
@@ -221,14 +223,14 @@ def render_radar_chart(reference_row: pd.Series, match_row: pd.Series, kpi_cols:
                 r=reference_trace,
                 theta=categories,
                 fill="toself",
-                name="Reference suburb",
+                name=reference_suburb_name,
                 line=dict(color="#5e17eb"),
             ),
             go.Scatterpolar(
                 r=match_trace,
                 theta=categories,
                 fill="toself",
-                name="Selected matching suburb",
+                name=match_suburb_name,
                 line=dict(color="#8df2ed"),
             ),
         ]
