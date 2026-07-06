@@ -52,18 +52,39 @@ def render_sidebar_controls(display_names, kpi_cols, kpi_labels, access):
 
         preset_weights = {
             "Investor": {
-                "kpi_1_val": 1.6,
-                "kpi_2_val": 0.8,
-                "kpi_10_val": 1.2,
+                "kpi_1_val": 1.5,   # Prosperity
+                "kpi_2_val": 0.8,   # Diversity
+                "kpi_3_val": 1.2,   # Migration Footprint
+                "kpi_4_val": 1.2,   # Learning Level
+                "kpi_5_val": 0.8,   # Social Housing
+                "kpi_6_val": 1.4,   # Resident Equity
+                "kpi_7_val": 1.6,   # Rental Access
+                "kpi_8_val": 1.2,   # Resident Anchor
+                "kpi_9_val": 1.0,   # Household Mobility
+                "kpi_10_val": 0.8,  # Young Family
             },
             "Family": {
-                "kpi_1_val": 1.0,
-                "kpi_2_val": 1.2,
-                "kpi_10_val": 1.8,
+                "kpi_1_val": 1.1,
+                "kpi_2_val": 1.0,
+                "kpi_3_val": 0.9,
+                "kpi_4_val": 1.4,
+                "kpi_5_val": 0.8,
+                "kpi_6_val": 1.2,
+                "kpi_7_val": 1.2,
+                "kpi_8_val": 1.4,
+                "kpi_9_val": 0.9,
+                "kpi_10_val": 1.6,
             },
             "Lifestyle": {
                 "kpi_1_val": 0.9,
                 "kpi_2_val": 1.5,
+                "kpi_3_val": 1.0,
+                "kpi_4_val": 1.2,
+                "kpi_5_val": 0.8,
+                "kpi_6_val": 1.0,
+                "kpi_7_val": 1.3,
+                "kpi_8_val": 1.4,
+                "kpi_9_val": 1.3,
                 "kpi_10_val": 1.3,
             },
         }
