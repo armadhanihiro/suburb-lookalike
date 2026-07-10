@@ -1,7 +1,8 @@
 .env
 secrets/
 *.json
-cache/
+cache/*
+!cache/suburb_embeddings.npy
 logs/
 *.npy
 *.index
