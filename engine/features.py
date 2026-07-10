@@ -48,6 +48,13 @@ def load_suburb_data(client):
     area_threshold = df["area"].quantile(0.95)
 
     df["is_remote_outlier"] = ((df["population"] <= population_threshold) & (df["area"] >= area_threshold))
+    print(df["is_remote_outlier"].value_counts())
+    print(
+        df.loc[
+            df["is_remote_outlier"],
+            ["sa2_name", "state", "population", "area"]
+        ]
+    )
 
     removed_count = before_count - len(df)
 
