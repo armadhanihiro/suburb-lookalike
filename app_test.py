@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from engine.logging_utils import now_ms, elapsed_ms, log_search
+import time
+
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
-from engine.features_test import KPI_COLS
+from engine.features import KPI_COLS
 from engine.fusion import fuse_vectors
 from engine.sample_data import get_sample_suburbs
 from engine.similarity import find_similar_suburbs
@@ -18,8 +21,9 @@ from engine.rbac import (
     increment_lookup,
     has_lookup_remaining,
 )
+from engine.user_login import login_screen, is_logged_in, get_current_access
 
-from engine.user_login import login_screen, is_logged_in, get_current_access  # new login sheet
+# Removed interactive login UI: use a default local access when not provided
 
 from ui.layout import (
     render_explanation_card,
@@ -58,6 +62,50 @@ st.set_page_config(
     layout="wide",
 )
 
+# ============================================================
+# Login Handling
+# ============================================================
+if "access" not in st.session_state:
+    st.session_state.access = None
+
+if st.session_state.access is not None:
+    print("✅ user logged in， showing welcome message")
+    access = st.session_state.access
+    
+    # show log out button
+    with st.sidebar:
+        st.image("assets/demografy-logo.png", width=180)
+        st.write(f"👋 Welcome, **{access.get('user_id', 'User')}**")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.access = None
+            st.cache_data.clear()
+            st.rerun()
+    
+else:
+    print("🔐 user not logged in, showing login interface")
+    user_access = login_screen()
+    if user_access:
+        st.session_state.access = user_access
+        st.rerun()
+    st.stop()
+
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sauce+Sans:wght@400;500;600;700&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
+
+    html, body, .stApp, .main, .block-container, .element-container, .css-1cpxqw2, .css-1d391kg {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+
+    h1, h2, h3, h4, h5, h6, .stText, .stMarkdown {
+        font-family: 'Open Sauce Sans', sans-serif !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_resource
 def load_engine():
@@ -93,21 +141,18 @@ def load_engine():
     df["display_name"] = df["sa2_name"] + " (" + df["state_abbr"] + ")"
     
     # ============================================================
-    # New：Fusion vector + two FAISS indexes
+    # 构建混合向量和 FAISS 索引（移到 return 之前）
     # ============================================================
     from engine.fusion import fuse_vectors
     from engine.index import build_faiss_index as build_faiss_index_group
     from engine.index_faiss import build_index as build_faiss_index_tutorial
 
-    # First to build a basic version x_hybrid（to add weight when searching）
     x_hybrid_base = fuse_vectors(x_numeric, x_text, alpha=0.5) if x_text is not None else x_numeric
-
-    # Two indexes with different configurations for ab testing in the future
     faiss_index_group = build_faiss_index_group(x_hybrid_base)
     faiss_index_tutorial = build_faiss_index_tutorial(x_hybrid_base)
 
+    # ✅ kepp only one return
     return df, x_numeric, x_text, data_source, x_hybrid_base, faiss_index_group, faiss_index_tutorial
-
 
 
 def apply_kpi_weights(x_numeric, weights):
@@ -132,45 +177,6 @@ client_for_rbac = None
 if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
     client_for_rbac = get_bigquery_client()
 
-#user_id = st.sidebar.text_input("User ID", value="user_017", key="rbac_user_id").strip()
-#base_access = get_user_access(user_id, client=client_for_rbac)
-#
-#if ("access" not in st.session_state or st.session_state.access["user_id"] != user_id):
-#    st.session_state.access = base_access
-#
-#access = st.session_state.access
-
-# ============================================================
-# new login page（replace user_id input, hide all other content）
-# ============================================================
-if "access" not in st.session_state:
-    st.session_state.access = None
-
-# display login page
-user_access = login_screen()
-if user_access:
-    st.session_state.access = user_access
-    st.rerun()
-
-# check if not logged in, hide all contents
-if not is_logged_in():
-    st.set_page_config(page_title="Login - Demografy", layout="centered")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("assets/demografy-logo.png", width=150)
-        st.title("🔐 Welcome to Demografy")
-        st.markdown("Please log in to access the Suburb Look-alike Finder.")
-        st.caption("Don't have an account? Contact your administrator to register.")
-
-        # Ask for user email
-        st.info("Use your registered email to log in.")
-    
-    st.stop()  # stop displaying content
-
-# access current user access
-access = st.session_state.access
-
 controls = render_sidebar_controls(
     df["display_name"].tolist(),
     KPI_COLS,
@@ -179,10 +185,11 @@ controls = render_sidebar_controls(
 )
 
 st.title("Suburb Look-alike Finder")
-st.divider() 
+st.divider()
 
 
 if controls["search_clicked"]:
+    start_time = now_ms()
     if not access["is_active"]:
         st.error("User account is inactive.")
         st.stop()
@@ -222,12 +229,14 @@ if controls["search_clicked"]:
         x_text,
         alpha=blend_alpha,
     )
+
     # ============================================================
-    # New: Import time and user requirement FAISS
+    # 三段时间对比（只执行一次）
     # ============================================================
     import time
     from engine.index_faiss import nearest
 
+    # 1. Group FAISS
     faiss_index = build_faiss_index(x_hybrid)
 
     start_group = time.time()
@@ -238,7 +247,124 @@ if controls["search_clicked"]:
     )
     time_group = (time.time() - start_group) * 1000
 
+    # hybrid_results
     hybrid_results = []
+    for score, idx in zip(scores, indices):
+        if idx == reference_idx:
+            continue
+        hybrid_results.append(
+            {
+                "index": int(idx),
+                "similarity": float(score),
+            }
+        )
+        if len(hybrid_results) == top_n:
+            break
+
+    # 2. Tutorial FAISS
+    start_tutorial = time.time()
+    tutorial_results = nearest(
+        faiss_index_tutorial,
+        x_hybrid,
+        reference_idx,
+        weights=1.0,
+        n=top_n,
+    )
+    time_tutorial = (time.time() - start_tutorial) * 1000
+
+    # 3. Naive search
+    start_naive = time.time()
+    naive_results = find_similar_suburbs(x_hybrid, reference_idx, top_n=top_n)
+    time_naive = (time.time() - start_naive) * 1000
+
+    # save session_state（for bottome display）
+    st.session_state.time_naive = time_naive
+    st.session_state.time_group = time_group
+    st.session_state.time_tutorial = time_tutorial
+
+    # ============================================================
+    # 构建结果表格
+    # ============================================================
+    numeric_results = find_similar_suburbs(
+        weighted_x_numeric,
+        reference_idx,
+        top_n=100,
+    )
+
+    rows = []
+    for rank, item in enumerate(hybrid_results, start=1):
+        match_idx = int(item["index"])
+        suburb = df.iloc[match_idx]
+
+        top_kpis = get_top_contributing_kpis(
+            weighted_x_numeric,
+            reference_idx,
+            match_idx,
+            KPI_COLS,
+            top_n=3,
+        )
+
+        rank_delta = get_rank_delta(
+            match_idx,
+            numeric_results,
+            rank,
+        )
+
+        rows.append(
+            {
+                "Rank": rank,
+                "Suburb": suburb["sa2_name"],
+                "State": suburb["state_abbr"],
+                "Score": round(float(item["similarity"]) * 100, 2),
+                "Top KPIs": ", ".join(top_kpis),
+                "vs numeric": rank_delta,
+                "_match_idx": match_idx,
+            }
+        )
+
+    results_df = pd.DataFrame(rows)
+
+    log_search(
+        user_id=access["user_id"],
+        reference=selected_display,
+        alpha=blend_alpha,
+        top_n=top_n,
+        preset=preset,
+        data_source=data_source,
+        duration_ms=elapsed_ms(start_time),
+        results=[
+            {
+                "rank": row["Rank"],
+                "suburb": row["Suburb"],
+                "state": row["State"],
+                "score": row["Score"],
+                "top_kpis": row["Top KPIs"],
+                "vs_numeric": row["vs numeric"],
+            } for row in rows
+        ],
+    )
+
+    st.session_state.results_df = results_df
+    st.session_state.reference_idx = reference_idx
+    st.session_state.selected_display = selected_display
+    st.session_state.preset = preset
+    st.session_state.blend_alpha = blend_alpha
+
+
+if "results_df" in st.session_state:
+    # ... 结果渲染 ...
+
+    # ============================================================
+    # 底部显示时间对比（从 session_state 读取）
+    # ============================================================
+    st.divider()
+    st.subheader("⚡ Search Perfromance (ms)")
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Naive Search", f"{st.session_state.time_naive:.2f} ms")
+    col2.metric("FAISS (Group)", f"{st.session_state.time_group:.2f} ms")
+    col3.metric("FAISS (Tutorial)", f"{st.session_state.time_tutorial:.2f} ms")
+
     for score, idx in zip(scores, indices):
         if idx == reference_idx:
             continue
@@ -252,42 +378,6 @@ if controls["search_clicked"]:
 
         if len(hybrid_results) == top_n:
             break
-    
-    # ----- 2. Tutorial FAISS（New） -----
-    start_tutorial = time.time()
-    tutorial_results = nearest(
-        faiss_index_tutorial,  # index created in load_engine
-        x_hybrid,
-        reference_idx,
-        weights=1.0,  # x_hybrid weight given
-        n=top_n,
-    )
-    time_tutorial = (time.time() - start_tutorial) * 1000
-
-    # ----- 3. Naive Index（new） -----
-    from engine.similarity import find_similar_suburbs
-
-    start_naive = time.time()
-    naive_results = find_similar_suburbs(
-    x_hybrid,
-    reference_idx,
-    top_n=top_n,
-)
-    time_naive = (time.time() - start_naive) * 1000
-
-    naive_indices = [r["index"] for r in naive_results]
-    naive_scores = [r["similarity"] for r in naive_results]
-
-
-    # ============================================================
-    # New: time the group FAISS search (which is currently used in the app)
-    # ============================================================
-    st.divider()
-    st.subheader("⚡ performance comparison (ms)")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Naive Search", f"{time_naive:.2f} ms")
-    col2.metric("FAISS (group)", f"{time_group:.2f} ms")
-    col3.metric("FAISS (tutorial)", f"{time_tutorial:.2f} ms")
 
     numeric_results = find_similar_suburbs(
         weighted_x_numeric,
@@ -328,6 +418,26 @@ if controls["search_clicked"]:
         )
 
     results_df = pd.DataFrame(rows)
+
+    log_search(
+        user_id=access["user_id"],
+        reference=selected_display,
+        alpha=blend_alpha,
+        top_n=top_n,
+        preset=preset,
+        data_source=data_source,
+        duration_ms=elapsed_ms(start_time),
+        results=[
+            {
+                "rank": row["Rank"],
+                "suburb": row["Suburb"],
+                "state": row["State"],
+                "score": row["Score"],
+                "top_kpis": row["Top KPIs"],
+                "vs_numeric": row["vs numeric"],
+            } for row in rows
+        ],
+    )
 
     st.session_state.results_df = results_df
     st.session_state.reference_idx = reference_idx
