@@ -80,22 +80,33 @@ st.markdown(
 
 @st.cache_resource
 def load_engine():
-    if BIGQUERY_AVAILABLE and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        client = get_bigquery_client()
-        df, x_numeric, _ = load_suburb_data(client)
+    if BIGQUERY_AVAILABLE:
+        try:
+            client = get_bigquery_client()
+            df, x_numeric, _ = load_suburb_data(client)
 
-        x_text = load_or_create_embeddings(
-            profiles=[],
-            cache_path="cache/suburb_embeddings.npy",
-        )
+            x_text = load_or_create_embeddings(
+                profiles=[],
+                cache_path="cache/suburb_embeddings.npy",
+            )
 
-        data_source = "BigQuery"
+            data_source = "BigQuery"
+
+        except Exception as error:
+            st.warning(
+                f"BigQuery could not be loaded. "
+                f"Using sample data instead. Error: {error}"
+            )
+
+            df, x_numeric, _ = get_sample_suburbs()
+            x_text = None
+            data_source = "Sample data"
+
     else:
         df, x_numeric, _ = get_sample_suburbs()
         x_text = None
         data_source = "Sample data"
-    # Add State abbreviation mapping
-    # ============================================================
+
     STATE_ABBR = {
         "New South Wales": "NSW",
         "Victoria": "VIC",
@@ -106,11 +117,14 @@ def load_engine():
         "Australian Capital Territory": "ACT",
         "Northern Territory": "NT",
         "Other Territories": "OT",
-        "Outside Australia": "OA"
+        "Outside Australia": "OA",
     }
+
     df["state_abbr"] = df["state"].map(STATE_ABBR).fillna(df["state"])
-    df["display_name"] = df["sa2_name"] + " (" + df["state_abbr"] + ")"
-    
+    df["display_name"] = (
+        df["sa2_name"] + " (" + df["state_abbr"] + ")"
+    )
+
     return df, x_numeric, x_text, data_source
 
 
