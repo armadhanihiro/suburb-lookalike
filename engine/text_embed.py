@@ -6,6 +6,8 @@ import numpy as np
 from dotenv import load_dotenv
 from google import genai
 
+import streamlit as st
+
 
 load_dotenv()
 
@@ -15,6 +17,9 @@ CACHE_PATH = CACHE_DIR / "embeddings.npy"
 
 def get_gemini_client():
     api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key and "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
 
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not set in .env")

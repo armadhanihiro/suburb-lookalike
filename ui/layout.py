@@ -265,8 +265,8 @@ def render_radar_chart(reference_row: pd.Series, match_row: pd.Series, kpi_cols:
             )
         ),
         showlegend=True,
-        margin=dict(l=20, r=20, t=20, b=20),
-        height=500,
+        margin=dict(l=80, r=80, t=50, b=80),
+        height=450,
     )
 
     st.plotly_chart(fig, use_container_width=True)
