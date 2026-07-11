@@ -23,8 +23,8 @@ def normalize_tier(tier):
     return str(tier).strip().lower()
 
 
-def get_customer_from_bigquery(client, user_id):
-    user_id = str(user_id).strip()
+def get_customer_from_bigquery(client, login_id):
+    login_id = str(login_id).strip().lower()
 
     query = f"""
         SELECT
@@ -33,16 +33,17 @@ def get_customer_from_bigquery(client, user_id):
             tier,
             is_active
         FROM `{CUSTOMERS_TABLE}`
-        WHERE TRIM(user_id) = @user_id
+        WHERE LOWER(TRIM(user_id)) = @login_id
+           OR LOWER(TRIM(email)) = @login_id
         LIMIT 1
     """
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter(
-                "user_id",
+                "login_id",
                 "STRING",
-                user_id,
+                login_id,
             )
         ]
     )
@@ -58,6 +59,27 @@ def get_customer_from_bigquery(client, user_id):
     return df.iloc[0].to_dict()
 
 
+def get_user_access(login_id, client=None):
+    login_id = str(login_id).strip()
+
+    if client is None:
+        return None
+
+    customer = get_customer_from_bigquery(
+        client,
+        login_id,
+    )
+
+    if customer is None:
+        return None
+
+    return build_access(
+        user_id=customer["user_id"],
+        tier=customer["tier"],
+        is_active=customer["is_active"],
+    )
+
+
 def build_access(user_id, tier, is_active=True, lookups_used=0):
     tier = normalize_tier(tier)
 
@@ -69,30 +91,6 @@ def build_access(user_id, tier, is_active=True, lookups_used=0):
         "lookup_limit": LOOKUP_LIMITS.get(tier, 10),
         "match_cap": TIER_LIMITS.get(tier, 5),
     }
-
-
-def get_user_access(user_id, client=None):
-    user_id = str(user_id).strip()
-
-    if client is not None:
-        customer = get_customer_from_bigquery(
-            client,
-            user_id,
-        )
-
-        if customer:
-            return build_access(
-                user_id=customer["user_id"],
-                tier=customer["tier"],
-                is_active=customer["is_active"],
-            )
-    return None
-
-    return build_access(
-        user_id=user_id,
-        tier="free",
-        is_active=False,
-    )
 
 
 def cap_top_n(top_n, access):

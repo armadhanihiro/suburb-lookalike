@@ -6,7 +6,6 @@ import pandas as pd
 import streamlit as st
 
 from engine.logging_utils import now_ms, elapsed_ms, log_search
-import time
 
 from engine.explain import KPI_LABELS, get_rank_delta, get_top_contributing_kpis
 from engine.features import KPI_COLS
@@ -16,12 +15,11 @@ from engine.similarity import find_similar_suburbs
 from engine.text_embed import load_or_create_embeddings
 from engine.index import build_faiss_index, search_index
 from engine.rbac import (
-    get_user_access,
     cap_top_n,
     increment_lookup,
     has_lookup_remaining,
 )
-from engine.user_login import login_screen, is_logged_in, get_current_access
+from engine.user_login import login_screen
 
 # Removed interactive login UI: use a default local access when not provided
 
@@ -131,14 +129,10 @@ KPI_DISPLAY_LABELS = [
 ]
 
 def main():
-    # ============================================================
-    # Login handling
-    # ============================================================
     if "access" not in st.session_state:
         st.session_state.access = None
 
     if st.session_state.access is None:
-        print("🔐 User not logged in, showing login interface")
 
         user_access = login_screen()
 
@@ -150,9 +144,6 @@ def main():
 
     access = st.session_state.access
 
-    # ============================================================
-    # Logged-in user information
-    # ============================================================
     with st.sidebar:
         st.image("assets/demografy-logo.png", width=180)
 
@@ -169,9 +160,6 @@ def main():
             st.cache_data.clear()
             st.rerun()
 
-    # ============================================================
-    # Load data and engine
-    # ============================================================
     df, x_numeric, x_text, data_source = load_engine()
 
     controls = render_sidebar_controls(
