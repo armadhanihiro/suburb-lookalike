@@ -14,13 +14,6 @@ KPI_LABELS = {
 }
 
 def get_top_contributing_kpis(X_numeric, reference_idx, match_idx, kpi_cols, top_n=3):
-    """
-    Find KPI columns where reference suburb and matched suburb
-    are most similar.
-
-    Smaller absolute difference = stronger similarity contribution.
-    """
-
     reference_vector = X_numeric[reference_idx]
     match_vector = X_numeric[match_idx]
 
@@ -33,11 +26,6 @@ def get_top_contributing_kpis(X_numeric, reference_idx, match_idx, kpi_cols, top
     ]
 
 def build_rank_map(results):
-    """
-    Convert result list into:
-    suburb_index -> rank
-    """
-
     return {
         item["index"]: rank
         for rank, item in enumerate(results, start=1)
@@ -45,13 +33,6 @@ def build_rank_map(results):
 
 
 def get_rank_delta(match_idx, numeric_results, hybrid_rank,):
-    """
-    Compare hybrid rank against numeric-only rank.
-
-    Positive value means the suburb ranked higher in hybrid search.
-    Negative value means it ranked lower.
-    """
-
     numeric_rank_map = build_rank_map(numeric_results)
     numeric_rank = numeric_rank_map.get(match_idx)
 
@@ -69,10 +50,6 @@ def get_rank_delta(match_idx, numeric_results, hybrid_rank,):
 
 
 def get_radar_data(df, reference_idx, match_idx, kpi_cols,):
-    """
-    Prepare raw KPI values for radar chart.
-    """
-
     reference_row = df.iloc[reference_idx]
     match_row = df.iloc[match_idx]
 
