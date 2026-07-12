@@ -513,7 +513,7 @@ This has intentionally been left as future work after completing the core hybrid
 | Team Member | Role | Responsibilities |
 |------------|------|------------------|
 | **Armadhani Hiro Juni Permana** | **Embeddings / Fusion (Technical Lead)** | Led the technical direction of the project, implemented the hybrid retrieval pipeline, Gemini embeddings, vector fusion, FAISS integration, similarity evaluation (Golden Set, Precision@k/Recall@k, Alpha Sweep), structured logging, and technical documentation. |
-| **Jenny Hu** | **Data / Numeric** | Conducted dataset exploration, implemented the numeric pipeline, feature engineering, KPI preprocessing, missing value handling, and contributed to frontend development and application integration. |
+| **Jiewen He** | **Data / Numeric** | Conducted dataset exploration, implemented the numeric pipeline, feature engineering, KPI preprocessing, missing value handling, and contributed to frontend development and application integration. |
 | **Keerthika Mohan** | **Frontend / Evaluation** | Developed the Streamlit application, implemented UI features, integrated system components. |
 
 ---
